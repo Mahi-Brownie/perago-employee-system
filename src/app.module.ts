@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
-import { UserEntity } from './entities/user.entity';
-import { PhotoEntity } from './entities/photo.entity';
+import { EmployeeModule } from './employee/employee.module';
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
 
 @Module({
   imports: [
@@ -13,19 +15,26 @@ import { PhotoEntity } from './entities/photo.entity';
       host: 'localhost',
       port: 5432,
       username: 'postgres',
-      password: 'root',
-      database: 'orga_structure',
-      entities: [UserEntity, PhotoEntity],
+      password: 'postgres123',
+      database: 'perago_db',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: true,
+      autoLoadEntities: true,
     }),
+    EmployeeModule,
+    AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+  ],
 })
-export class AppModule {
-  constructor(private dataSource: DataSource) {
-console.log(dataSource.toString())
-
-  }
-
-}
+export class AppModule {}

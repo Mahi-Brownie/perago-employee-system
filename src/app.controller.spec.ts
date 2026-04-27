@@ -1,22 +1,24 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { EmployeeModule } from './employee/employee.module';
 
-describe('AppController', () => {
-  let appController: AppController;
-
-  beforeEach(async () => {
-    const app: TestingModule = await Test.createTestingModule({
-      controllers: [AppController],
-      providers: [AppService],
-    }).compile();
-
-    appController = app.get<AppController>(AppController);
-  });
-
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
-    });
-  });
-});
+@Module({
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: 'localhost',
+      port: 5432,
+      username: 'postgres',
+      password: 'postgres',
+      database: 'perago',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      synchronize: true,
+    }),
+    EmployeeModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
