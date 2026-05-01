@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { EmployeeEntity } from '../entities/employee.entity';
 import { CreateEmployeeDto, UpdateEmployeeDto, EmployeeQueryDto } from './create-employee.dto';
 
+type RequestUser = { userId: number; role: string } | null;
+
 @Injectable()
 export class EmployeeService {
   constructor(
@@ -15,7 +17,7 @@ export class EmployeeService {
   // GET ALL EMPLOYEES (FLAT + RELATIONS)
   // =========================
   async findAll(
-    user: { userId: number; role: string },
+    user: RequestUser,
     query: EmployeeQueryDto = {},
   ): Promise<EmployeeEntity[]> {
     const qb = this.employeeRepository.createQueryBuilder('employee');
@@ -52,7 +54,7 @@ export class EmployeeService {
       qb.andWhere('employee.createdBy = :createdBy', { createdBy: query.createdBy });
     }
 
-    if (user.role !== 'admin') {
+    if (user && user.role !== 'admin') {
       qb.andWhere('employee.createdBy = :userId', {
         userId: user.userId,
       });
@@ -64,7 +66,7 @@ export class EmployeeService {
   // =========================
   // GET HIERARCHY (TREE STRUCTURE)
   // =========================
-  async getHierarchy(user: { userId: number; role: string }): Promise<EmployeeEntity[]> {
+  async getHierarchy(user: RequestUser): Promise<EmployeeEntity[]> {
     const employees = await this.findAll(user, {});
     const nodeMap = new Map<string, EmployeeEntity & { subordinates: EmployeeEntity[] }>();
 
@@ -107,10 +109,10 @@ export class EmployeeService {
   // =========================
   // CREATE EMPLOYEE
   // =========================
-  async create(dto: CreateEmployeeDto, user: { userId: number; role: string }) {
+  async create(dto: CreateEmployeeDto, user: RequestUser) {
     const employee = this.employeeRepository.create({
       ...dto,
-      createdBy: user.userId,
+      createdBy: user?.userId ?? null,
     });
 
     return await this.employeeRepository.save(employee);
@@ -119,7 +121,7 @@ export class EmployeeService {
   // =========================
   // GET ONE EMPLOYEE
   // =========================
-  async findOne(id: string, user: { userId: number; role: string }): Promise<EmployeeEntity> {
+  async findOne(id: string, user: RequestUser): Promise<EmployeeEntity> {
     const employee = await this.employeeRepository.findOne({
       where: { id },
       relations: ['subordinates', 'manager'],
@@ -129,7 +131,7 @@ export class EmployeeService {
       throw new NotFoundException(`Employee ${id} not found`);
     }
 
-    if (user.role !== 'admin' && employee.createdBy !== user.userId) {
+    if (user && user.role !== 'admin' && employee.createdBy !== user.userId) {
       throw new ForbiddenException('You do not have access to this employee');
     }
 
@@ -142,7 +144,7 @@ export class EmployeeService {
   async update(
     id: string,
     dto: UpdateEmployeeDto,
-    user: { userId: number; role: string },
+    user: RequestUser,
   ): Promise<EmployeeEntity> {
     const employee = await this.employeeRepository.findOne({
       where: { id },
@@ -153,7 +155,7 @@ export class EmployeeService {
       throw new NotFoundException(`Employee with id ${id} not found`);
     }
 
-    if (user.role !== 'admin' && employee.createdBy !== user.userId) {
+    if (user && user.role !== 'admin' && employee.createdBy !== user.userId) {
       throw new ForbiddenException('You do not have permission to update this employee');
     }
 
@@ -180,7 +182,15 @@ export class EmployeeService {
   // =========================
   // DELETE EMPLOYEE
   // =========================
-  async remove(id: string, user: { userId: number; role: string }): Promise<void> {
+  async remove(id: string, user: RequestUser): Promise<void> {
+    if (!user) {
+      const result = await this.employeeRepository.delete(id);
+      if (result.affected === 0) {
+        throw new NotFoundException(`Employee with id ${id} not found`);
+      }
+      return;
+    }
+
     if (user.role === 'admin') {
       const result = await this.employeeRepository.delete(id);
       if (result.affected === 0) {
